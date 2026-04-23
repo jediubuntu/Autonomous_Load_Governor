@@ -3,7 +3,7 @@
 ALG is a Python-first closed-loop performance testing system. It runs a FastAPI
 system under test, drives load with Locust, adapts users in real time, detects
 stability and breakpoint behavior, and uses an OpenAI-compatible LLM to explain
-each decision and generate a final report.
+each interval and generate batched markdown + HTML reports on a timed cadence.
 
 The local workflow is intentionally Docker-free: setup installs Python
 dependencies into `.venv`, then the controller runs the Locust load driver
@@ -14,7 +14,8 @@ inside the Python process.
 - Closed-loop load control instead of fixed-load testing.
 - Live adjustment of virtual users based on latency, errors, CPU, and RPS.
 - Stability-window detection and breakpoint classification.
-- LLM-generated explanations and final performance summary.
+- Rule decisions every interval with LLM summaries only on a report cadence.
+- HTML report viewer exposed by the FastAPI app.
 - A FastAPI test service with `GET`, `POST`, `PUT`, and `DELETE` endpoints.
 
 ## Architecture
@@ -24,7 +25,7 @@ Locust load driver
         -> FastAPI system under test
         -> Controller collects live stats
         -> Decision engine adjusts users
-        -> LLM explains decisions and report
+        -> LLM summarizes batched intervals into timed reports
 ```
 
 Runtime metrics come from:
@@ -149,23 +150,48 @@ In the controller window, expect lines like:
 [1/5] users=10 p95=120.0ms errors=0.000% cpu=35.0% rps=18.4 action=hold->10 bottleneck=none
 ```
 
-The LLM explanation prints below each decision after the API responds.
+Open the HTML report viewer:
+
+```text
+http://127.0.0.1:8000/reports
+```
+
+If a report already exists, `/reports` redirects to the newest HTML report:
+
+```text
+http://127.0.0.1:8000/reports/latest
+```
+
+The controller still collects metrics and makes decisions every interval, but it
+calls the LLM only when the report window elapses. With the default settings,
+that means one LLM-backed report every minute.
 
 ## Analysis Output
 
-At the end of a successful run, ALG writes a markdown report under:
+During a run, ALG writes batched markdown and HTML reports under:
 
 ```text
 reports/
 ```
 
-The report summarizes:
+The FastAPI app also serves them at:
+
+```text
+/reports
+/reports/latest
+/reports/files/{filename}
+```
+
+Each report summarizes:
 
 - max stable users
 - detected breakpoint, if any
 - bottleneck classification
 - supporting metrics
 - suggested fixes
+
+`reports/latest.html` is updated on each reporting cycle so there is always a
+stable link for the newest user-friendly report page.
 
 `reports/` is ignored because generated LLM output may contain run details.
 
@@ -211,6 +237,7 @@ ALG_STEP_USERS=10
 ALG_SPAWN_RATE=10
 ALG_INTERVAL_SECONDS=60
 ALG_MAX_INTERVALS=5
+ALG_REPORT_EVERY_SECONDS=60
 ALG_LATENCY_THRESHOLD_MS=500
 ALG_ERROR_RATE_THRESHOLD=0.02
 ALG_CPU_THRESHOLD_PERCENT=80
@@ -252,6 +279,8 @@ No report generated:
 
 - check whether the controller stopped due to an LLM error
 - confirm `.env` has `ALG_LLM_API_KEY` and `ALG_LLM_MODEL`
+- wait until `ALG_REPORT_EVERY_SECONDS` has elapsed
+- open `http://127.0.0.1:8000/reports` to view the latest HTML output
 
 ## Manual Run
 
