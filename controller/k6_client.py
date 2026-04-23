@@ -13,6 +13,7 @@ class K6Client:
         payload = {
             "data": {
                 "type": "status",
+                "id": "default",
                 "attributes": {
                     "vus": users,
                     "vus-max": max(max_users, users),
