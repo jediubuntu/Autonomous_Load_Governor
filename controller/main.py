@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from gevent import monkey
+
+monkey.patch_all()
+
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,9 +14,8 @@ if str(ROOT) not in sys.path:
 
 from controller.config import ConfigError, Settings
 from controller.decision_engine import DecisionEngine
-from controller.k6_client import K6Client
-from controller.metrics_client import PrometheusMetricsClient
-from llm.explainer import LLMExplainer
+from llm.explainer import LLMError, LLMExplainer
+import gevent
 
 
 def build_engine(settings: Settings) -> DecisionEngine:
@@ -36,33 +38,36 @@ def main() -> int:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
 
-    metrics = PrometheusMetricsClient(settings.prometheus_url)
-    k6 = K6Client(settings.k6_api_url)
+    from controller.load_driver import LocustLoadDriver
+
+    load_driver = LocustLoadDriver(
+        target_url=settings.target_url,
+        spawn_rate=settings.spawn_rate,
+    )
     llm = LLMExplainer(
         api_key=settings.llm_api_key,
         base_url=settings.llm_base_url,
         model=settings.llm_model,
+        max_retries=settings.llm_max_retries,
+        retry_seconds=settings.llm_retry_seconds,
     )
     engine = build_engine(settings)
 
     current_users = settings.initial_users
     print("Starting ALG controller")
-    print(f"Prometheus: {settings.prometheus_url}")
-    print(f"k6 API: {settings.k6_api_url}")
+    print(f"Target: {settings.target_url}")
+    print("Load driver: Locust")
     print(f"LLM model: {settings.llm_model}")
     print(f"Initial users: {current_users}")
 
-    k6.set_users(current_users, settings.max_users)
+    load_driver.start(current_users)
 
+    llm_failed = False
     try:
         for interval in range(1, settings.max_intervals + 1):
-            snapshot = metrics.collect(current_users)
+            gevent.sleep(settings.interval_seconds)
+            snapshot = load_driver.collect(current_users)
             decision = engine.decide(snapshot)
-            explanation = llm.explain_decision(
-                snapshot=snapshot,
-                decision=decision,
-                thresholds=settings.thresholds(),
-            )
 
             print(
                 f"[{interval}/{settings.max_intervals}] "
@@ -74,25 +79,42 @@ def main() -> int:
                 f"action={decision.action}->{decision.target_users} "
                 f"bottleneck={decision.bottleneck}"
             )
-            print(explanation)
+
+            try:
+                explanation = llm.explain_decision(
+                    snapshot=snapshot,
+                    decision=decision,
+                    thresholds=settings.thresholds(),
+                )
+                print(explanation)
+            except LLMError as exc:
+                llm_failed = True
+                print(f"LLM error: {exc}", file=sys.stderr)
+                print("Stopping run because LLM explanations are required.", file=sys.stderr)
+                break
 
             if decision.target_users != current_users:
-                k6.set_users(decision.target_users, settings.max_users)
+                load_driver.scale(decision.target_users)
                 current_users = decision.target_users
-
-            time.sleep(settings.interval_seconds)
     except KeyboardInterrupt:
         print("Controller interrupted; generating final LLM report.")
     finally:
-        if engine.history:
+        load_driver.stop()
+        if engine.history and not llm_failed:
             write_report(settings, llm, engine)
+        elif llm_failed:
+            print("Final report skipped because the LLM request failed.", file=sys.stderr)
 
     return 0
 
 
 def write_report(settings: Settings, llm: LLMExplainer, engine: DecisionEngine) -> None:
     summary = engine.summary()
-    report = llm.summarize_run(history=engine.history, summary=summary)
+    try:
+        report = llm.summarize_run(history=engine.history, summary=summary)
+    except LLMError as exc:
+        print(f"Final report failed: {exc}", file=sys.stderr)
+        return
     settings.report_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     report_path = settings.report_dir / f"alg_report_{timestamp}.md"

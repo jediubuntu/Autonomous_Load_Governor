@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from controller.decision_engine import Decision, EngineSummary, MetricsSnapshot
+
+
+class LLMError(RuntimeError):
+    pass
 
 
 class LLMExplainer:
@@ -14,6 +20,8 @@ class LLMExplainer:
         api_key: str,
         base_url: str,
         model: str,
+        max_retries: int = 3,
+        retry_seconds: float = 10.0,
         timeout_seconds: int = 45,
     ) -> None:
         if not api_key:
@@ -23,6 +31,8 @@ class LLMExplainer:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.max_retries = max_retries
+        self.retry_seconds = retry_seconds
         self.timeout_seconds = timeout_seconds
 
     def explain_decision(
@@ -84,10 +94,63 @@ class LLMExplainer:
             },
             method="POST",
         )
-        with urlopen(request, timeout=self.timeout_seconds) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        payload = self._send_with_retries(request)
 
         try:
             return payload["choices"][0]["message"]["content"].strip()
         except (KeyError, IndexError) as exc:
             raise RuntimeError(f"Unexpected LLM response shape: {payload}") from exc
+
+    def _send_with_retries(self, request: Request) -> dict:
+        for attempt in range(self.max_retries + 1):
+            try:
+                with urlopen(request, timeout=self.timeout_seconds) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except HTTPError as exc:
+                message = self._http_error_message(exc)
+                retryable = exc.code in {408, 409, 429, 500, 502, 503, 504}
+                if not retryable or attempt >= self.max_retries:
+                    raise LLMError(message) from exc
+                sleep_seconds = self._retry_after_seconds(exc) or self.retry_seconds
+                print(
+                    f"LLM request failed with HTTP {exc.code}; "
+                    f"retrying in {sleep_seconds:.1f}s ({attempt + 1}/{self.max_retries})"
+                )
+                time.sleep(sleep_seconds)
+            except URLError as exc:
+                if attempt >= self.max_retries:
+                    raise LLMError(f"LLM request failed: {exc.reason}") from exc
+                print(
+                    "LLM request failed due to a network error; "
+                    f"retrying in {self.retry_seconds:.1f}s ({attempt + 1}/{self.max_retries})"
+                )
+                time.sleep(self.retry_seconds)
+
+        raise LLMError("LLM request failed after retries")
+
+    def _retry_after_seconds(self, exc: HTTPError) -> float | None:
+        retry_after = exc.headers.get("Retry-After")
+        if not retry_after:
+            return None
+        try:
+            return max(0.1, float(retry_after))
+        except ValueError:
+            return None
+
+    def _http_error_message(self, exc: HTTPError) -> str:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8")
+        except Exception:
+            body = ""
+
+        if body:
+            try:
+                payload = json.loads(body)
+                detail = payload.get("error", {}).get("message") or body
+            except json.JSONDecodeError:
+                detail = body
+        else:
+            detail = exc.reason
+
+        return f"LLM request failed with HTTP {exc.code}: {detail}"

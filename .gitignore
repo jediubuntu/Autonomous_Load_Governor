@@ -12,13 +12,11 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.alg-run/
 
 reports/
 logs/
 *.log
-
-prometheus-data/
-grafana-data/
 
 node_modules/
 dist/

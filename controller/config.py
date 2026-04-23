@@ -40,15 +40,17 @@ def _float_env(name: str, default: float, min_value: float | None = None) -> flo
 
 @dataclass(frozen=True)
 class Settings:
-    prometheus_url: str
-    k6_api_url: str
+    target_url: str
     llm_api_key: str
     llm_base_url: str
     llm_model: str
+    llm_max_retries: int
+    llm_retry_seconds: float
     initial_users: int
     min_users: int
     max_users: int
     step_users: int
+    spawn_rate: float
     interval_seconds: int
     max_intervals: int
     latency_threshold_ms: float
@@ -77,15 +79,17 @@ class Settings:
             raise ConfigError("ALG_INITIAL_USERS must be <= ALG_MAX_USERS")
 
         return cls(
-            prometheus_url=os.getenv("PROMETHEUS_URL", "http://localhost:9090").rstrip("/"),
-            k6_api_url=os.getenv("K6_API_URL", "http://localhost:6565").rstrip("/"),
+            target_url=os.getenv("ALG_TARGET_URL", "http://127.0.0.1:8000").rstrip("/"),
             llm_api_key=llm_api_key,
             llm_base_url=os.getenv("ALG_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
             llm_model=llm_model,
+            llm_max_retries=_int_env("ALG_LLM_MAX_RETRIES", 3, min_value=0),
+            llm_retry_seconds=_float_env("ALG_LLM_RETRY_SECONDS", 10.0, min_value=0.1),
             initial_users=initial_users,
             min_users=min_users,
             max_users=max_users,
             step_users=_int_env("ALG_STEP_USERS", 50, min_value=1),
+            spawn_rate=_float_env("ALG_SPAWN_RATE", 10.0, min_value=0.1),
             interval_seconds=_int_env("ALG_INTERVAL_SECONDS", 30, min_value=1),
             max_intervals=_int_env("ALG_MAX_INTERVALS", 20, min_value=1),
             latency_threshold_ms=_float_env("ALG_LATENCY_THRESHOLD_MS", 500.0, min_value=1.0),
