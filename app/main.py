@@ -55,13 +55,8 @@ def runtime() -> dict[str, float | int]:
     }
 
 
-@app.get("/reports", response_class=HTMLResponse)
-def reports_home() -> Response:
+def render_reports_home() -> str:
     reports = sorted(REPORT_DIR.glob("alg_report_*.html"), reverse=True)
-    latest = REPORT_DIR / "latest.html"
-
-    if latest.exists():
-        return RedirectResponse(url="/reports/latest", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
     report_items = []
     for report in reports:
@@ -70,7 +65,7 @@ def reports_home() -> Response:
             f'<li><a href="/reports/files/{report.name}">{report.name}</a><span>{modified}</span></li>'
         )
 
-    html = f"""<!doctype html>
+    return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -205,14 +200,21 @@ def reports_home() -> Response:
   </main>
 </body>
 </html>"""
-    return HTMLResponse(html)
 
 
-@app.get("/reports/latest")
+@app.get("/reports", response_class=HTMLResponse)
+def reports_home() -> Response:
+    latest = REPORT_DIR / "latest.html"
+    if latest.exists():
+        return RedirectResponse(url="/reports/latest", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+    return HTMLResponse(render_reports_home())
+
+
+@app.get("/reports/latest", response_class=HTMLResponse)
 def latest_report_file() -> Response:
     latest = REPORT_DIR / "latest.html"
     if not latest.exists():
-        return reports_home()
+        return HTMLResponse(render_reports_home())
     return FileResponse(latest, media_type="text/html")
 
 

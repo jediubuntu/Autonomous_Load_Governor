@@ -48,15 +48,21 @@ Write-Host "Installing Python dependencies..."
 & $venvPython -m pip install -r "app\requirements.txt"
 
 if (-not (Test-Path -LiteralPath ".env")) {
-    Copy-Item -LiteralPath ".env.example" -Destination ".env"
-    Write-Host "Created .env from .env.example."
+    Write-Host "No .env found. Create one locally with your LLM credentials."
 } else {
     Write-Host ".env already exists; leaving it unchanged."
+}
+
+if (-not (Test-Path -LiteralPath "alg.settings.json")) {
+    throw "Missing alg.settings.json in repo root."
+} else {
+    Write-Host "alg.settings.json found."
 }
 
 Write-Host ""
 Write-Host "Setup complete."
 Write-Host "Next:"
 Write-Host "  1. notepad .env"
-Write-Host "  2. Fill in ALG_LLM_API_KEY and ALG_LLM_MODEL"
-Write-Host "  3. powershell -ExecutionPolicy Bypass -File scripts\run-local.ps1"
+Write-Host "  2. Add ALG_LLM_API_KEY, ALG_LLM_BASE_URL, and ALG_LLM_MODEL"
+Write-Host "  3. notepad alg.settings.json"
+Write-Host "  4. powershell -ExecutionPolicy Bypass -File scripts\run-local.ps1"

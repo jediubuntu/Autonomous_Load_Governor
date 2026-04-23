@@ -5,9 +5,10 @@ from gevent import monkey
 monkey.patch_all()
 
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
+
+import gevent
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -17,7 +18,6 @@ from controller.config import ConfigError, Settings
 from controller.decision_engine import Decision, DecisionEngine
 from controller.reporting import utc_timestamp, write_html_report, write_text_report
 from llm.explainer import LLMError, LLMExplainer
-import gevent
 
 
 def build_engine(settings: Settings) -> DecisionEngine:
@@ -61,6 +61,7 @@ def main() -> int:
     print("Load driver: Locust")
     print(f"LLM model: {settings.llm_model}")
     print(f"Initial users: {current_users}")
+    print(f"LLM control loop: every {settings.interval_seconds}s")
     print(f"LLM report cadence: every {settings.report_every_seconds}s")
 
     load_driver.start(current_users)
@@ -72,7 +73,25 @@ def main() -> int:
         for interval in range(1, settings.max_intervals + 1):
             gevent.sleep(settings.interval_seconds)
             snapshot = load_driver.collect(current_users)
-            decision = engine.decide(snapshot)
+
+            try:
+                llm_decision = llm.decide_next_action(
+                    current_users=current_users,
+                    snapshot=snapshot,
+                    history=engine.history,
+                    decisions=decisions,
+                    thresholds=settings.thresholds(),
+                    min_users=settings.min_users,
+                    max_users=settings.max_users,
+                    step_users=settings.step_users,
+                )
+            except LLMError as exc:
+                llm_failed = True
+                print(f"LLM error: {exc}", file=sys.stderr)
+                print("Stopping run because LLM-driven control is required.", file=sys.stderr)
+                break
+
+            decision = engine.register(snapshot, llm_decision)
             decisions.append(decision)
 
             print(
@@ -80,10 +99,20 @@ def main() -> int:
                 f"users={snapshot.users} "
                 f"p95={snapshot.latency_p95_ms:.1f}ms "
                 f"errors={snapshot.error_rate:.3%} "
-                f"cpu={snapshot.cpu_percent:.1f}% "
+                f"system_cpu={snapshot.system_cpu_percent:.1f}% "
+                f"app_cpu={snapshot.process_cpu_percent:.1f}% "
                 f"rps={snapshot.rps:.1f} "
                 f"action={decision.action}->{decision.target_users} "
-                f"bottleneck={decision.bottleneck}"
+                f"bottleneck={decision.bottleneck} "
+                f"reason={decision.reason}"
+            )
+
+            write_live_report(
+                settings=settings,
+                engine=engine,
+                decisions=decisions,
+                interval=interval,
+                max_intervals=settings.max_intervals,
             )
 
             elapsed_since_report = monotonic() - last_report_time
@@ -113,9 +142,48 @@ def main() -> int:
     finally:
         load_driver.stop()
         if llm_failed:
-            print("Run stopped after LLM report failure.", file=sys.stderr)
+            print("Run stopped after LLM failure.", file=sys.stderr)
 
     return 0
+
+
+def write_live_report(
+    *,
+    settings: Settings,
+    engine: DecisionEngine,
+    decisions: list[Decision],
+    interval: int,
+    max_intervals: int,
+) -> None:
+    summary = engine.summary()
+    latest = engine.history[-1]
+    latest_decision = decisions[-1]
+    report = (
+        f"Live report snapshot\n\n"
+        f"Interval: {interval}/{max_intervals}\n"
+        f"Users: {latest.users}\n"
+        f"P95 latency: {latest.latency_p95_ms:.1f} ms\n"
+        f"Error rate: {latest.error_rate:.3%}\n"
+        f"System CPU: {latest.system_cpu_percent:.1f}%\n"
+        f"App process CPU: {latest.process_cpu_percent:.1f}%\n"
+        f"RPS: {latest.rps:.1f}\n"
+        f"Latest action: {latest_decision.action}->{latest_decision.target_users}\n"
+        f"Decision reason: {latest_decision.reason}\n"
+        f"Bottleneck: {latest_decision.bottleneck}\n\n"
+        f"Scaling control is LLM-directed every interval. "
+        f"Periodic summary cadence remains {settings.report_every_seconds}s."
+    )
+    timestamp = utc_timestamp()
+    html_path = write_html_report(
+        settings.report_dir,
+        report=report,
+        history=engine.history,
+        decisions=decisions,
+        summary=summary,
+        timestamp=timestamp,
+        title="ALG Live Report",
+    )
+    print(f"Live HTML report updated at {html_path}")
 
 
 def write_report(

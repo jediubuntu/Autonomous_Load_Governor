@@ -4,6 +4,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
+import json
 
 from controller.decision_engine import Decision, EngineSummary, MetricsSnapshot
 
@@ -57,6 +58,21 @@ def render_html_report(
         render_row(index, snapshot, decisions[index] if index < len(decisions) else None)
         for index, snapshot in enumerate(history)
     )
+    chart_data = [
+        {
+            "interval": index + 1,
+            "users": snapshot.users,
+            "latency": round(snapshot.latency_p95_ms, 2),
+            "errors": round(snapshot.error_rate * 100, 4),
+            "systemCpu": round(snapshot.system_cpu_percent, 2),
+            "processCpu": round(snapshot.process_cpu_percent, 2),
+            "rps": round(snapshot.rps, 2),
+            "action": decisions[index].action if index < len(decisions) else "none",
+            "bottleneck": decisions[index].bottleneck if index < len(decisions) else "none",
+        }
+        for index, snapshot in enumerate(history)
+    ]
+    report_html = markdown_to_html(report)
 
     return f"""<!doctype html>
 <html lang="en">
@@ -66,140 +82,699 @@ def render_html_report(
   <title>{escape(title)}</title>
   <style>
     :root {{
-      color-scheme: light;
-      --bg: #f7f8fb;
-      --panel: #ffffff;
-      --ink: #172033;
-      --muted: #667085;
-      --line: #dde3ee;
-      --accent: #2563eb;
-      --good: #047857;
-      --warn: #b45309;
-      --bad: #b91c1c;
+      color-scheme: dark;
+      --bg: #07111f;
+      --bg-soft: #0b1628;
+      --panel: rgba(12, 22, 38, 0.88);
+      --panel-2: rgba(17, 30, 51, 0.92);
+      --line: rgba(148, 163, 184, 0.16);
+      --line-strong: rgba(148, 163, 184, 0.28);
+      --ink: #e5eefc;
+      --muted: #97a8c5;
+      --accent: #60a5fa;
+      --accent-2: #38bdf8;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --violet: #a78bfa;
+      --pink: #f472b6;
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
     }}
     * {{ box-sizing: border-box; }}
+    html, body {{ margin: 0; padding: 0; }}
     body {{
-      margin: 0;
       font-family: Inter, Segoe UI, Arial, sans-serif;
-      background: var(--bg);
+      background:
+        radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 30%),
+        radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 24%),
+        linear-gradient(180deg, #081120 0%, #07111f 100%);
       color: var(--ink);
+      min-height: 100vh;
       line-height: 1.5;
     }}
-    header {{
-      background: #101827;
-      color: #fff;
-      padding: 28px 32px;
+    .shell {{
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 28px;
     }}
-    header p {{ color: #cbd5e1; margin: 6px 0 0; }}
-    main {{ max-width: 1180px; margin: 0 auto; padding: 28px; }}
-    h1, h2 {{ margin: 0; }}
-    h2 {{ font-size: 18px; margin-bottom: 14px; }}
-    .grid {{
+    .hero {{
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-      margin-bottom: 20px;
+      grid-template-columns: 1.4fr 0.8fr;
+      gap: 18px;
+      margin-bottom: 18px;
     }}
-    .card, .section {{
+    .panel {{
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 8px;
-      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+      border-radius: 20px;
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
     }}
-    .card {{ padding: 18px; }}
-    .label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }}
-    .value {{ font-size: 26px; font-weight: 700; margin-top: 6px; }}
-    .section {{ padding: 20px; margin-top: 20px; overflow: hidden; }}
+    .hero-main {{
+      padding: 26px;
+      position: relative;
+      overflow: hidden;
+    }}
+    .hero-main::after {{
+      content: "";
+      position: absolute;
+      inset: auto -60px -80px auto;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(96, 165, 250, 0.24), transparent 65%);
+      pointer-events: none;
+    }}
+    .eyebrow {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(96, 165, 250, 0.14);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }}
+    h1 {{
+      margin: 14px 0 10px;
+      font-size: 34px;
+      line-height: 1.15;
+    }}
+    .hero-copy {{
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 16px;
+      margin-bottom: 0;
+    }}
+    .hero-side {{
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }}
+    .meta-label {{
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }}
+    .meta-value {{
+      font-size: 18px;
+      font-weight: 700;
+    }}
+    .kpi-grid {{
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }}
+    .card {{
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      min-height: 122px;
+    }}
+    .card .label {{
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }}
+    .card .value {{
+      margin-top: 10px;
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1.1;
+    }}
+    .card .hint {{
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }}
+    .content-grid {{
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }}
+    .section {{
+      padding: 22px;
+    }}
+    .section-header {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }}
+    h2 {{
+      margin: 0;
+      font-size: 19px;
+    }}
+    .subtle {{
+      color: var(--muted);
+      font-size: 13px;
+    }}
     .report {{
-      white-space: pre-wrap;
-      font-family: Segoe UI, Arial, sans-serif;
-      color: #243047;
+      color: #d7e5fb;
+      font-size: 15px;
     }}
-    table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
-    th, td {{ padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; }}
-    th {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }}
-    .pill {{ display: inline-block; padding: 3px 8px; border-radius: 999px; background: #eff6ff; color: var(--accent); font-weight: 600; }}
-    .bad {{ color: var(--bad); }}
-    .good {{ color: var(--good); }}
-    .warn {{ color: var(--warn); }}
+    .report h1, .report h2, .report h3 {{
+      margin-top: 0;
+      color: #fff;
+    }}
+    .report p, .report li {{
+      color: #d4def0;
+    }}
+    .report ul {{
+      padding-left: 18px;
+    }}
+    .report code {{
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-family: Consolas, monospace;
+    }}
+    .tabs {{
+      display: inline-flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+    .tab-btn {{
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      padding: 9px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }}
+    .tab-btn.active {{
+      background: rgba(96, 165, 250, 0.14);
+      color: #fff;
+      border-color: rgba(96, 165, 250, 0.35);
+    }}
+    .chart-wrap {{
+      display: grid;
+      gap: 14px;
+    }}
+    svg {{
+      width: 100%;
+      height: auto;
+      display: block;
+      overflow: visible;
+    }}
+    .legend {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      color: var(--muted);
+      font-size: 13px;
+    }}
+    .legend span {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }}
+    .legend i {{
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      display: inline-block;
+    }}
+    .toolbar {{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 14px;
+    }}
+    select {{
+      background: rgba(255,255,255,0.04);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 12px;
+    }}
+    .stats-table {{
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 16px;
+    }}
+    .stats-table th, .stats-table td {{
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      font-size: 14px;
+    }}
+    .stats-table th {{
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      position: sticky;
+      top: 0;
+      background: rgba(8, 17, 31, 0.96);
+      backdrop-filter: blur(10px);
+    }}
+    .table-wrap {{
+      max-height: 420px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(6, 12, 24, 0.38);
+    }}
+    .pill {{
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }}
+    .pill.hold {{ background: rgba(245, 158, 11, 0.16); color: #fbbf24; }}
+    .pill.increase {{ background: rgba(34, 197, 94, 0.16); color: #86efac; }}
+    .pill.decrease {{ background: rgba(239, 68, 68, 0.16); color: #fca5a5; }}
+    .timeline {{
+      display: grid;
+      gap: 12px;
+    }}
+    .timeline-item {{
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 14px;
+      align-items: start;
+    }}
+    .timeline-badge {{
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: rgba(96, 165, 250, 0.12);
+      border: 1px solid rgba(96, 165, 250, 0.26);
+      color: var(--accent);
+      font-weight: 800;
+    }}
+    .timeline-card {{
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 16px;
+    }}
+    .timeline-title {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+      align-items: center;
+    }}
+    .timeline-copy {{
+      color: var(--muted);
+      font-size: 14px;
+    }}
+    .footer-note {{
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 14px;
+    }}
+    @media (max-width: 1180px) {{
+      .hero,
+      .content-grid,
+      .kpi-grid {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }}
+    }}
     @media (max-width: 900px) {{
-      .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-      main {{ padding: 18px; }}
-    }}
-    @media (max-width: 560px) {{
-      .grid {{ grid-template-columns: 1fr; }}
-      table {{ font-size: 12px; }}
-      th, td {{ padding: 8px; }}
+      .hero,
+      .content-grid,
+      .kpi-grid {{
+        grid-template-columns: 1fr;
+      }}
+      .shell {{
+        padding: 16px;
+      }}
+      h1 {{
+        font-size: 28px;
+      }}
     }}
   </style>
 </head>
 <body>
-  <header>
-    <h1>{escape(title)}</h1>
-    <p>Generated {escape(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"))}</p>
-  </header>
-  <main>
-    <section class="grid">
-      {metric_card("Current Users", latest.users if latest else 0)}
-      {metric_card("P95 Latency", f"{latest.latency_p95_ms:.1f} ms" if latest else "0 ms")}
-      {metric_card("Error Rate", f"{latest.error_rate:.3%}" if latest else "0.000%")}
-      {metric_card("Current RPS", f"{latest.rps:.1f}" if latest else "0.0")}
-      {metric_card("Max Stable", summary.max_stable_users)}
-      {metric_card("Breakpoint", summary.breakpoint_users or "not detected")}
-      {metric_card("Bottleneck", summary.bottleneck)}
-      {metric_card("Last Action", latest_decision.action if latest_decision else "none")}
+  <div class="shell">
+    <section class="hero">
+      <article class="panel hero-main">
+        <span class="eyebrow">ALG interactive report</span>
+        <h1>{escape(title)}</h1>
+        <p class="hero-copy">
+          Explore live load behavior, capacity decisions, CPU signals, and LLM-backed analysis in one report.
+          This page is self-contained and refresh-safe, so it works for both live snapshots and periodic summaries.
+        </p>
+      </article>
+      <aside class="panel hero-side">
+        <div>
+          <div class="meta-label">Generated</div>
+          <div class="meta-value">{escape(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"))}</div>
+        </div>
+        <div>
+          <div class="meta-label">Intervals captured</div>
+          <div class="meta-value">{len(history)}</div>
+        </div>
+        <div>
+          <div class="meta-label">Latest action</div>
+          <div class="meta-value">{escape(latest_decision.action if latest_decision else "none")}</div>
+        </div>
+      </aside>
     </section>
-    <section class="section">
-      <h2>LLM Analysis</h2>
-      <div class="report">{escape(report)}</div>
+
+    <section class="kpi-grid">
+      {metric_card("Current Users", latest.users if latest else 0, "Active load level")}
+      {metric_card("P95 Latency", f"{latest.latency_p95_ms:.1f} ms" if latest else "0 ms", "Tail latency now")}
+      {metric_card("Error Rate", f"{latest.error_rate:.3%}" if latest else "0.000%", "Observed failures")}
+      {metric_card("Current RPS", f"{latest.rps:.1f}" if latest else "0.0", "Throughput")}
+      {metric_card("System CPU", f"{latest.system_cpu_percent:.1f}%" if latest else "0.0%", "Whole laptop / machine")}
+      {metric_card("App Process CPU", f"{latest.process_cpu_percent:.1f}%" if latest else "0.0%", "FastAPI process only")}
+      {metric_card("Max Stable", summary.max_stable_users, "Best stable user count")}
+      {metric_card("Breakpoint", summary.breakpoint_users or "not detected", "First unstable user count")}
+      {metric_card("Bottleneck", summary.bottleneck, "Current classification")}
+      {metric_card("Last Action", latest_decision.action if latest_decision else "none", "Most recent controller choice")}
     </section>
-    <section class="section">
-      <h2>Interval Metrics</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Users</th>
-            <th>P95</th>
-            <th>Errors</th>
-            <th>CPU</th>
-            <th>RPS</th>
-            <th>Action</th>
-            <th>Bottleneck</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows}
-        </tbody>
-      </table>
+
+    <section class="content-grid">
+      <article class="panel section">
+        <div class="section-header">
+          <div>
+            <h2>Interactive charts</h2>
+            <div class="subtle">Switch between performance dimensions and inspect interval trends.</div>
+          </div>
+          <div class="tabs" id="chartTabs">
+            <button class="tab-btn active" data-series="latency">Latency</button>
+            <button class="tab-btn" data-series="users">Users</button>
+            <button class="tab-btn" data-series="rps">RPS</button>
+            <button class="tab-btn" data-series="cpu">CPU</button>
+            <button class="tab-btn" data-series="errors">Errors</button>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <svg id="trendChart" viewBox="0 0 920 360" role="img" aria-label="ALG trend chart"></svg>
+          <div class="legend" id="chartLegend"></div>
+          <div class="footer-note">Tip: the CPU tab overlays system CPU and app process CPU so you can separate laptop-wide load from the FastAPI service process.</div>
+        </div>
+      </article>
+
+      <article class="panel section">
+        <div class="section-header">
+          <div>
+            <h2>LLM analysis</h2>
+            <div class="subtle">Rendered directly from the generated markdown.</div>
+          </div>
+        </div>
+        <div class="report">{report_html}</div>
+      </article>
     </section>
-  </main>
+
+    <section class="content-grid">
+      <article class="panel section">
+        <div class="section-header">
+          <div>
+            <h2>Decision timeline</h2>
+            <div class="subtle">Every interval action with context and bottleneck classification.</div>
+          </div>
+        </div>
+        <div class="timeline">
+          {render_timeline(history, decisions)}
+        </div>
+      </article>
+
+      <article class="panel section">
+        <div class="section-header">
+          <div>
+            <h2>Metrics table</h2>
+            <div class="subtle">Sortable by eye and easy to cross-check with the chart.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="stats-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Users</th>
+                <th>P95</th>
+                <th>Errors</th>
+                <th>System CPU</th>
+                <th>App CPU</th>
+                <th>RPS</th>
+                <th>Action</th>
+                <th>Bottleneck</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <script>
+    const DATA = {json.dumps(chart_data)};
+    const SERIES = {{
+      latency: {{
+        title: "P95 latency (ms)",
+        lines: [{{ key: "latency", label: "P95 latency", color: "#60a5fa" }}],
+      }},
+      users: {{
+        title: "Users",
+        lines: [{{ key: "users", label: "Users", color: "#a78bfa" }}],
+      }},
+      rps: {{
+        title: "Requests per second",
+        lines: [{{ key: "rps", label: "RPS", color: "#22c55e" }}],
+      }},
+      cpu: {{
+        title: "CPU utilization (%)",
+        lines: [
+          {{ key: "systemCpu", label: "System CPU", color: "#f59e0b" }},
+          {{ key: "processCpu", label: "App process CPU", color: "#f472b6" }},
+        ],
+      }},
+      errors: {{
+        title: "Error rate (%)",
+        lines: [{{ key: "errors", label: "Error rate", color: "#ef4444" }}],
+      }},
+    }};
+
+    function formatValue(seriesKey, value) {{
+      if (seriesKey === "latency") return `${{value.toFixed(1)}} ms`;
+      if (seriesKey === "users") return `${{value.toFixed(0)}} users`;
+      if (seriesKey === "rps") return `${{value.toFixed(1)}} rps`;
+      return `${{value.toFixed(2)}}%`;
+    }}
+
+    function renderChart(seriesKey) {{
+      const config = SERIES[seriesKey];
+      const svg = document.getElementById("trendChart");
+      const legend = document.getElementById("chartLegend");
+      const width = 920;
+      const height = 360;
+      const pad = {{ top: 24, right: 24, bottom: 54, left: 56 }};
+      const plotWidth = width - pad.left - pad.right;
+      const plotHeight = height - pad.top - pad.bottom;
+      const points = DATA.length ? DATA : [{{ interval: 1, latency: 0, users: 0, rps: 0, systemCpu: 0, processCpu: 0, errors: 0 }}];
+      const xStep = points.length > 1 ? plotWidth / (points.length - 1) : plotWidth / 2;
+      const allValues = config.lines.flatMap(line => points.map(item => Number(item[line.key] || 0)));
+      const maxValue = Math.max(...allValues, 1);
+      const niceMax = maxValue <= 10 ? Math.ceil(maxValue + 1) : Math.ceil(maxValue * 1.1);
+      const ticks = 5;
+      const y = value => pad.top + plotHeight - (value / niceMax) * plotHeight;
+      const x = index => pad.left + (points.length > 1 ? index * xStep : plotWidth / 2);
+
+      let markup = `
+        <rect x="0" y="0" width="${{width}}" height="${{height}}" rx="18" fill="rgba(7,17,31,0.18)"></rect>
+        <text x="${{pad.left}}" y="18" fill="#97a8c5" font-size="12" font-family="Inter, Segoe UI, Arial">${{config.title}}</text>
+      `;
+
+      for (let i = 0; i <= ticks; i++) {{
+        const tickValue = (niceMax / ticks) * i;
+        const yPos = y(tickValue);
+        markup += `
+          <line x1="${{pad.left}}" y1="${{yPos}}" x2="${{width - pad.right}}" y2="${{yPos}}" stroke="rgba(148,163,184,0.12)" stroke-width="1"></line>
+          <text x="${{pad.left - 10}}" y="${{yPos + 4}}" text-anchor="end" fill="#6f86a8" font-size="11">${{tickValue.toFixed(0)}}</text>
+        `;
+      }}
+
+      points.forEach((point, index) => {{
+        const xPos = x(index);
+        markup += `
+          <line x1="${{xPos}}" y1="${{pad.top}}" x2="${{xPos}}" y2="${{height - pad.bottom}}" stroke="rgba(148,163,184,0.07)" stroke-width="1"></line>
+          <text x="${{xPos}}" y="${{height - pad.bottom + 24}}" text-anchor="middle" fill="#6f86a8" font-size="11">#${{point.interval}}</text>
+        `;
+      }});
+
+      config.lines.forEach(line => {{
+        const polyline = points.map((point, index) => `${{x(index)}},${{y(Number(point[line.key] || 0))}}`).join(" ");
+        markup += `
+          <polyline fill="none" stroke="${{line.color}}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="${{polyline}}"></polyline>
+        `;
+        points.forEach((point, index) => {{
+          const value = Number(point[line.key] || 0);
+          const cx = x(index);
+          const cy = y(value);
+          markup += `
+            <circle cx="${{cx}}" cy="${{cy}}" r="5.5" fill="${{line.color}}"></circle>
+            <title>${{line.label}} · interval ${{point.interval}} · ${{formatValue(seriesKey, value)}}</title>
+          `;
+        }});
+      }});
+
+      svg.innerHTML = markup;
+      legend.innerHTML = config.lines
+        .map(line => `<span><i style="background:${{line.color}}"></i>${{line.label}}</span>`)
+        .join("");
+    }}
+
+    document.querySelectorAll(".tab-btn").forEach(button => {{
+      button.addEventListener("click", () => {{
+        document.querySelectorAll(".tab-btn").forEach(item => item.classList.remove("active"));
+        button.classList.add("active");
+        renderChart(button.dataset.series);
+      }});
+    }});
+
+    renderChart("latency");
+  </script>
 </body>
 </html>
 """
 
 
-def metric_card(label: str, value: object) -> str:
+def markdown_to_html(markdown: str) -> str:
+    lines = markdown.splitlines()
+    parts: list[str] = []
+    in_list = False
+    in_code = False
+
+    for raw_line in lines:
+        line = raw_line.rstrip()
+
+        if line.startswith("```"):
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            if in_code:
+                parts.append("</code></pre>")
+                in_code = False
+            else:
+                parts.append("<pre><code>")
+                in_code = True
+            continue
+
+        if in_code:
+            parts.append(escape(line) + "\n")
+            continue
+
+        if not line.strip():
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            continue
+
+        if line.startswith("### "):
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            parts.append(f"<h3>{escape(line[4:])}</h3>")
+        elif line.startswith("## "):
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            parts.append(f"<h2>{escape(line[3:])}</h2>")
+        elif line.startswith("# "):
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            parts.append(f"<h1>{escape(line[2:])}</h1>")
+        elif line.startswith("- "):
+            if not in_list:
+                parts.append("<ul>")
+                in_list = True
+            parts.append(f"<li>{inline_markdown(line[2:])}</li>")
+        else:
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            parts.append(f"<p>{inline_markdown(line)}</p>")
+
+    if in_list:
+        parts.append("</ul>")
+    if in_code:
+        parts.append("</code></pre>")
+
+    return "".join(parts)
+
+
+def inline_markdown(text: str) -> str:
+    escaped = escape(text)
+    return escaped.replace("`", "")
+
+
+def metric_card(label: str, value: object, hint: str) -> str:
     return f"""<article class="card">
         <div class="label">{escape(label)}</div>
         <div class="value">{escape(str(value))}</div>
+        <div class="hint">{escape(hint)}</div>
       </article>"""
 
 
 def render_row(index: int, snapshot: MetricsSnapshot, decision: Decision | None) -> str:
     action = decision.action if decision else "none"
     bottleneck = decision.bottleneck if decision else "none"
-    action_class = "good" if action == "increase" else "bad" if action == "decrease" else "warn"
     return f"""<tr>
             <td>{index + 1}</td>
             <td>{snapshot.users}</td>
             <td>{snapshot.latency_p95_ms:.1f} ms</td>
             <td>{snapshot.error_rate:.3%}</td>
-            <td>{snapshot.cpu_percent:.1f}%</td>
+            <td>{snapshot.system_cpu_percent:.1f}%</td>
+            <td>{snapshot.process_cpu_percent:.1f}%</td>
             <td>{snapshot.rps:.1f}</td>
-            <td><span class="pill {action_class}">{escape(action)}</span></td>
+            <td><span class="pill {escape(action)}">{escape(action)}</span></td>
             <td>{escape(bottleneck)}</td>
           </tr>"""
+
+
+def render_timeline(history: list[MetricsSnapshot], decisions: list[Decision]) -> str:
+    items: list[str] = []
+    for index, snapshot in enumerate(history):
+        decision = decisions[index] if index < len(decisions) else None
+        action = decision.action if decision else "none"
+        bottleneck = decision.bottleneck if decision else "none"
+        reason = decision.reason if decision else "No decision recorded."
+        items.append(
+            f"""<article class="timeline-item">
+              <div class="timeline-badge">#{index + 1}</div>
+              <div class="timeline-card">
+                <div class="timeline-title">
+                  <strong>{escape(action.title())}</strong>
+                  <span class="pill {escape(action)}">{escape(action)}</span>
+                </div>
+                <div class="timeline-copy">
+                  users={snapshot.users}, p95={snapshot.latency_p95_ms:.1f} ms,
+                  system_cpu={snapshot.system_cpu_percent:.1f}%, app_cpu={snapshot.process_cpu_percent:.1f}%,
+                  rps={snapshot.rps:.1f}, bottleneck={escape(bottleneck)}.
+                  {escape(reason)}
+                </div>
+              </div>
+            </article>"""
+        )
+    return "".join(items) or "<p class=\"subtle\">No intervals captured yet.</p>"
 
 
 def decisions_as_dicts(decisions: list[Decision]) -> list[dict]:

@@ -37,11 +37,13 @@ class LocustLoadDriver:
         latency_p95_ms = float(total.get_response_time_percentile(0.95) or 0.0)
         rps = float(getattr(total, "current_rps", 0.0) or getattr(total, "total_rps", 0.0) or 0.0)
 
+        cpu_metrics = self._read_cpu_metrics()
         snapshot = MetricsSnapshot.now(
             users=users,
             latency_p95_ms=latency_p95_ms,
             error_rate=error_rate,
-            cpu_percent=self._read_cpu_percent(),
+            system_cpu_percent=cpu_metrics["system_cpu_percent"],
+            process_cpu_percent=cpu_metrics["process_cpu_percent"],
             rps=rps,
         )
         self.environment.stats.reset_all()
@@ -50,10 +52,16 @@ class LocustLoadDriver:
     def stop(self) -> None:
         self.runner.quit()
 
-    def _read_cpu_percent(self) -> float:
+    def _read_cpu_metrics(self) -> dict[str, float]:
         try:
             with urlopen(f"{self.target_url}/runtime", timeout=self.timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-            return float(payload.get("cpu_percent", 0.0))
+            return {
+                "system_cpu_percent": float(payload.get("cpu_percent", 0.0)),
+                "process_cpu_percent": float(payload.get("process_cpu_percent", 0.0)),
+            }
         except Exception:
-            return 0.0
+            return {
+                "system_cpu_percent": 0.0,
+                "process_cpu_percent": 0.0,
+            }

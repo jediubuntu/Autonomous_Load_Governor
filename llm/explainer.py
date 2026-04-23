@@ -35,25 +35,75 @@ class LLMExplainer:
         self.retry_seconds = retry_seconds
         self.timeout_seconds = timeout_seconds
 
-    def explain_decision(
+    def decide_next_action(
         self,
         *,
+        current_users: int,
         snapshot: MetricsSnapshot,
-        decision: Decision,
+        history: list[MetricsSnapshot],
+        decisions: list[Decision],
         thresholds: dict[str, float | int],
-    ) -> str:
+        min_users: int,
+        max_users: int,
+        step_users: int,
+    ) -> Decision:
         payload = {
+            "current_users": current_users,
             "metrics": asdict(snapshot),
-            "decision": asdict(decision),
+            "recent_history": [asdict(item) for item in history[-5:]],
+            "recent_decisions": [asdict(item) for item in decisions[-5:]],
             "thresholds": thresholds,
+            "bounds": {
+                "min_users": min_users,
+                "max_users": max_users,
+                "default_step_users": step_users,
+            },
         }
-        return self._chat(
+        content = self._chat(
             system=(
-                "You are ALG's performance test analyst. Use only the supplied metrics. "
-                "Explain the controller decision in 3 concise bullets: observation, "
-                "likely bottleneck, next action."
+                "You are ALG's scaling controller. Decide the next load action using ONLY the supplied metrics. "
+                "Return strict JSON with keys: action, target_users, reason, bottleneck, breakpoint_detected. "
+                "Allowed action values: increase, hold, decrease. "
+                "Respect bounds exactly. "
+                "Increase users if latency and errors are healthy relative to thresholds. "
+                "Decrease only if there is clear instability. "
+                "Use bottleneck values from: none, CPU saturation, error saturation, latency collapse. "
+                "Do not include markdown fences or extra text."
             ),
             user=json.dumps(payload, indent=2),
+        )
+
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"LLM decision was not valid JSON: {content}") from exc
+
+        action = str(parsed.get("action", "hold")).strip().lower()
+        if action not in {"increase", "hold", "decrease"}:
+            action = "hold"
+
+        target_users = int(parsed.get("target_users", current_users))
+        target_users = max(min_users, min(max_users, target_users))
+
+        if action == "increase" and target_users <= current_users:
+            target_users = min(max_users, current_users + step_users)
+        elif action == "decrease" and target_users >= current_users:
+            target_users = max(min_users, current_users - step_users)
+        elif action == "hold":
+            target_users = current_users
+
+        bottleneck = str(parsed.get("bottleneck", "none")).strip() or "none"
+        if bottleneck not in {"none", "CPU saturation", "error saturation", "latency collapse"}:
+            bottleneck = "none"
+
+        return Decision(
+            action=action,
+            target_users=target_users,
+            reason=str(parsed.get("reason", "LLM-directed scaling decision")).strip()
+            or "LLM-directed scaling decision",
+            bottleneck=bottleneck,
+            stable=False,
+            breakpoint_detected=bool(parsed.get("breakpoint_detected", action == "decrease" and bottleneck != "none")),
         )
 
     def summarize_run(
@@ -88,7 +138,9 @@ class LLMExplainer:
                 {"role": "user", "content": user},
             ],
             "temperature": 0.2,
+            "response_format": {"type": "json_object"} if "strict JSON" in system else None,
         }
+        request_body = {key: value for key, value in request_body.items() if value is not None}
         request = Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(request_body).encode("utf-8"),
@@ -117,6 +169,8 @@ class LLMExplainer:
                 if not retryable or attempt >= self.max_retries:
                     raise LLMError(message) from exc
                 sleep_seconds = self._retry_after_seconds(exc) or self.retry_seconds
+                if exc.code == 429:
+                    sleep_seconds = max(120.0, sleep_seconds)
                 print(
                     f"LLM request failed with HTTP {exc.code}; "
                     f"retrying in {sleep_seconds:.1f}s ({attempt + 1}/{self.max_retries})"
