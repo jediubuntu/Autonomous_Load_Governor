@@ -65,6 +65,8 @@ class LLMExplainer:
                 "Return strict JSON with keys: action, target_users, reason, bottleneck, breakpoint_detected. "
                 "Allowed action values: increase, hold, decrease. "
                 "Respect bounds exactly. "
+                "Use staggered ramp-up. Start conservatively at low users and increase in measured steps based on current latency, error rate, CPU, and recent history. "
+                "Choose both whether to ramp and how far to ramp on each interval. "
                 "Increase users if latency and errors are healthy relative to thresholds. "
                 "Decrease only if there is clear instability. "
                 "Use bottleneck values from: none, CPU saturation, error saturation, latency collapse. "
