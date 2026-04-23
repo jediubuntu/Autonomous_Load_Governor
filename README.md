@@ -314,22 +314,19 @@ Setup:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r app\requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r app\requirements.txt
 notepad .env
 ```
 
 Terminal 1:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Terminal 2:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
 $env:ALG_TARGET_URL = "http://127.0.0.1:8000"
-python controller\main.py
+.\.venv\Scripts\python.exe controller\main.py
 ```
