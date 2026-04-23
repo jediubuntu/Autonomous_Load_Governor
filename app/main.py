@@ -4,9 +4,11 @@ import math
 import random
 import threading
 import time
+from pathlib import Path
 
 import psutil
 from fastapi import FastAPI, HTTPException, Query, Response, status
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 
@@ -35,6 +37,7 @@ START_TIME = time.time()
 
 
 app = FastAPI(title="ALG Test Service")
+REPORT_DIR = Path(__file__).resolve().parents[1] / "reports"
 
 
 @app.get("/health")
@@ -50,6 +53,35 @@ def runtime() -> dict[str, float | int]:
         "memory_percent": psutil.virtual_memory().percent,
         "uptime_seconds": round(time.time() - START_TIME, 3),
     }
+
+
+@app.get("/reports", response_class=HTMLResponse)
+def latest_report() -> Response:
+    latest = REPORT_DIR / "latest.html"
+    if not latest.exists():
+        html = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ALG Reports</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 40px; color: #172033; }
+    .box { max-width: 760px; border: 1px solid #dde3ee; border-radius: 8px; padding: 24px; }
+    h1 { margin-top: 0; }
+    code { background: #f2f4f7; padding: 2px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>No ALG report yet</h1>
+    <p>The controller writes reports after the configured report interval.</p>
+    <p>Default: <code>ALG_REPORT_EVERY_SECONDS=60</code></p>
+  </div>
+</body>
+</html>"""
+        return HTMLResponse(html)
+    return FileResponse(latest, media_type="text/html")
 
 
 @app.get("/items/{item_id}")

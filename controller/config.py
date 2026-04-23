@@ -53,6 +53,7 @@ class Settings:
     spawn_rate: float
     interval_seconds: int
     max_intervals: int
+    report_every_seconds: int
     latency_threshold_ms: float
     error_rate_threshold: float
     cpu_threshold_percent: float
@@ -92,6 +93,7 @@ class Settings:
             spawn_rate=_float_env("ALG_SPAWN_RATE", 10.0, min_value=0.1),
             interval_seconds=_int_env("ALG_INTERVAL_SECONDS", 30, min_value=1),
             max_intervals=_int_env("ALG_MAX_INTERVALS", 20, min_value=1),
+            report_every_seconds=_int_env("ALG_REPORT_EVERY_SECONDS", 60, min_value=1),
             latency_threshold_ms=_float_env("ALG_LATENCY_THRESHOLD_MS", 500.0, min_value=1.0),
             error_rate_threshold=_float_env("ALG_ERROR_RATE_THRESHOLD", 0.02, min_value=0.0),
             cpu_threshold_percent=_float_env("ALG_CPU_THRESHOLD_PERCENT", 80.0, min_value=1.0),

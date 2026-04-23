@@ -60,17 +60,22 @@ class LLMExplainer:
         self,
         *,
         history: list[MetricsSnapshot],
+        decisions: list[Decision] | None = None,
         summary: EngineSummary,
+        title: str = "Autonomous Load Governor Report",
     ) -> str:
         payload = {
+            "title": title,
             "summary": asdict(summary),
             "history": [asdict(item) for item in history],
+            "decisions": [asdict(item) for item in decisions or []],
         }
         return self._chat(
             system=(
-                "You are generating the final Autonomous Load Governor report. "
+                "You are generating an Autonomous Load Governor performance report. "
                 "Use markdown. Include max stable users, breakpoint, bottleneck, "
-                "evidence, and recommended fixes. Do not invent metrics."
+                "evidence, and recommended fixes. Do not invent metrics. "
+                "Keep it concise and useful for a performance engineering review."
             ),
             user=json.dumps(payload, indent=2),
         )

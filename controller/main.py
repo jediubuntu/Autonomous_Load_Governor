@@ -7,13 +7,15 @@ monkey.patch_all()
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from time import monotonic
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from controller.config import ConfigError, Settings
-from controller.decision_engine import DecisionEngine
+from controller.decision_engine import Decision, DecisionEngine
+from controller.reporting import utc_timestamp, write_html_report, write_text_report
 from llm.explainer import LLMError, LLMExplainer
 import gevent
 
@@ -59,15 +61,19 @@ def main() -> int:
     print("Load driver: Locust")
     print(f"LLM model: {settings.llm_model}")
     print(f"Initial users: {current_users}")
+    print(f"LLM report cadence: every {settings.report_every_seconds}s")
 
     load_driver.start(current_users)
 
     llm_failed = False
+    decisions: list[Decision] = []
+    last_report_time = monotonic()
     try:
         for interval in range(1, settings.max_intervals + 1):
             gevent.sleep(settings.interval_seconds)
             snapshot = load_driver.collect(current_users)
             decision = engine.decide(snapshot)
+            decisions.append(decision)
 
             print(
                 f"[{interval}/{settings.max_intervals}] "
@@ -80,18 +86,24 @@ def main() -> int:
                 f"bottleneck={decision.bottleneck}"
             )
 
-            try:
-                explanation = llm.explain_decision(
-                    snapshot=snapshot,
-                    decision=decision,
-                    thresholds=settings.thresholds(),
-                )
-                print(explanation)
-            except LLMError as exc:
-                llm_failed = True
-                print(f"LLM error: {exc}", file=sys.stderr)
-                print("Stopping run because LLM explanations are required.", file=sys.stderr)
-                break
+            elapsed_since_report = monotonic() - last_report_time
+            should_report = elapsed_since_report >= settings.report_every_seconds
+            is_last_interval = interval == settings.max_intervals
+            if should_report or is_last_interval:
+                try:
+                    write_report(
+                        settings=settings,
+                        llm=llm,
+                        engine=engine,
+                        decisions=decisions,
+                        title="ALG Periodic Performance Report",
+                    )
+                    last_report_time = monotonic()
+                except LLMError as exc:
+                    llm_failed = True
+                    print(f"LLM error: {exc}", file=sys.stderr)
+                    print("Stopping run because periodic LLM reports are required.", file=sys.stderr)
+                    break
 
             if decision.target_users != current_users:
                 load_driver.scale(decision.target_users)
@@ -100,26 +112,40 @@ def main() -> int:
         print("Controller interrupted; generating final LLM report.")
     finally:
         load_driver.stop()
-        if engine.history and not llm_failed:
-            write_report(settings, llm, engine)
-        elif llm_failed:
-            print("Final report skipped because the LLM request failed.", file=sys.stderr)
+        if llm_failed:
+            print("Run stopped after LLM report failure.", file=sys.stderr)
 
     return 0
 
 
-def write_report(settings: Settings, llm: LLMExplainer, engine: DecisionEngine) -> None:
+def write_report(
+    *,
+    settings: Settings,
+    llm: LLMExplainer,
+    engine: DecisionEngine,
+    decisions: list[Decision],
+    title: str,
+) -> None:
     summary = engine.summary()
-    try:
-        report = llm.summarize_run(history=engine.history, summary=summary)
-    except LLMError as exc:
-        print(f"Final report failed: {exc}", file=sys.stderr)
-        return
-    settings.report_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    report_path = settings.report_dir / f"alg_report_{timestamp}.md"
-    report_path.write_text(report, encoding="utf-8")
-    print(f"Final report written to {report_path}")
+    report = llm.summarize_run(
+        history=engine.history,
+        decisions=decisions,
+        summary=summary,
+        title=title,
+    )
+    timestamp = utc_timestamp()
+    markdown_path = write_text_report(settings.report_dir, report, timestamp)
+    html_path = write_html_report(
+        settings.report_dir,
+        report=report,
+        history=engine.history,
+        decisions=decisions,
+        summary=summary,
+        timestamp=timestamp,
+        title=title,
+    )
+    print(f"Report written to {markdown_path}")
+    print(f"HTML report written to {html_path}")
 
 
 if __name__ == "__main__":
