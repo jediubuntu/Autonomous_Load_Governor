@@ -55,16 +55,16 @@ Do not put API keys in commands, source files, screenshots, shell history, or
 README examples. Rotate the key if it is ever exposed.
 
 Required LLM values:
+- one API key variable:
+  - `ALG_LLM_API_KEY`
+  - `GEMINI_API_KEY`
+  - `GOOGLE_API_KEY`
+  - `OPENAI_API_KEY`
+- `ALG_LLM_BASE_URL`
+- `ALG_LLM_MODEL`
 
-```env
-ALG_LLM_API_KEY=your_key_here
-ALG_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-ALG_LLM_MODEL=gemini-2.5-flash
-```
-
-The controller has no non-LLM fallback. If the key or model is missing, startup
-fails. If the LLM API rate-limits the run, the controller retries and then exits
-cleanly rather than inventing explanations.
+The controller has no non-LLM fallback at startup. If the key or model is
+missing, startup fails.
 
 ## Setup
 

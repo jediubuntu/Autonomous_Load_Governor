@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ALG Reports</title>
+  <link rel="stylesheet" href="/reports/assets/reports-home.css">
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="panel">
+        <p class="eyebrow">Autonomous Load Governor</p>
+        <h1>Periodic HTML performance reports</h1>
+        <p class="subtitle">
+          ALG collects metrics every interval, makes rule-based scaling decisions every interval,
+          and calls the LLM only on the configured reporting cadence. Open the latest report
+          here once the controller has written one.
+        </p>
+        <a class="cta" href="/reports/latest">Open latest report</a>
+      </div>
+      <div class="panel">
+        <h2>Report cadence</h2>
+        <p>Default: <code>ALG_REPORT_EVERY_SECONDS=60</code></p>
+        <p>Metrics and decisions continue every controller interval. The LLM runs only when the report window elapses.</p>
+      </div>
+    </section>
+    <section class="stack">
+      <div class="stat">
+        <article class="tile">
+          <div class="label">Available HTML Reports</div>
+          <div class="value">{{REPORT_COUNT}}</div>
+        </article>
+        <article class="tile">
+          <div class="label">Report Directory</div>
+          <div class="value" style="font-size:18px;">reports/</div>
+        </article>
+        <article class="tile">
+          <div class="label">Latest Shortcut</div>
+          <div class="value" style="font-size:18px;">/reports/latest</div>
+        </article>
+      </div>
+      <div class="panel">
+        <h2>Generated report files</h2>
+        {{REPORT_ITEMS}}
+      </div>
+    </section>
+  </main>
+</body>
+</html>
