@@ -93,7 +93,12 @@ def report_asset(filename: str) -> Response:
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    media_type = "text/css" if path.suffix == ".css" else None
+    media_type = None
+    if path.suffix == ".css":
+        media_type = "text/css"
+    elif path.suffix == ".js":
+        media_type = "application/javascript"
+
     return FileResponse(path, media_type=media_type)
 
 
