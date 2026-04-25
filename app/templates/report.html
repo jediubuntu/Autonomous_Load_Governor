@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <link rel="stylesheet" href="/reports/assets/report.css">
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <article class="panel hero-main">
+        <span class="eyebrow">ALG interactive report</span>
+        <h1>{{TITLE}}</h1>
+        <p class="hero-copy">
+          Explore live load behavior, capacity decisions, CPU signals, and LLM-backed analysis in one report.
+          This page is self-contained and refresh-safe, so it works for both live snapshots and periodic summaries.
+        </p>
+      </article>
+      <aside class="panel hero-side">
+        <div>
+          <div class="meta-label">Generated</div>
+          <div class="meta-value">{{GENERATED_AT}}</div>
+        </div>
+        <div>
+          <div class="meta-label">Intervals captured</div>
+          <div class="meta-value">{{INTERVAL_COUNT}}</div>
+        </div>
+        <div>
+          <div class="meta-label">Latest action</div>
+          <div class="meta-value">{{LATEST_ACTION}}</div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="kpi-grid">
+      {{METRIC_CARDS}}
+    </section>
+
+    <section class="content-grid">
+      <article class="panel section">
+        <div class="section-header">
+          <div>
+            <h2>Interactive charts</h2>
+            <div class="subtle">Switch between performance dimensions and inspect interval trends.</div>
+          </div>
+          <div class="tabs" id="chartTabs">
+            <button class="tab-btn active" data-series="latency">Latency</button>
+            <button class="tab-btn" data-series="users">Users</button>
+            <button class="tab-btn" data-series="rps">RPS</button>
+            <button class="tab-btn" data-series="cpu">CPU</button>
+            <button class="tab-btn" data-series="errors">Errors</button>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <svg id="trendChart" viewBox="0 0 920 360" role="img" aria-label="ALG trend chart"></svg>
+          <div class="legend" id="chartLegend"></div>
+          <div class="footer-note">Tip: the CPU tab overlays system CPU and app process CPU so you can separate laptop-wide load from the FastAPI service process.</div>
+        </div>
+      </article>
+
+      <article class="panel section">
+        <div class="section-header">
+          <div>
+            <h2>LLM analysis</h2>
+            <div class="subtle">Rendered directly from the generated markdown.</div>
+          </div>
+        </div>
+        <div class="report">{{REPORT_HTML}}</div>
+      </article>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel section">
+        <div class="section-header">
+          <div>
+            <h2>Decision timeline</h2>
+            <div class="subtle">Every interval action with context and bottleneck classification.</div>
+          </div>
+        </div>
+        <div class="timeline">
+          {{TIMELINE_HTML}}
+        </div>
+      </article>
+
+      <article class="panel section">
+        <div class="section-header">
+          <div>
+            <h2>Metrics table</h2>
+            <div class="subtle">Sortable by eye and easy to cross-check with the chart.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="stats-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Users</th>
+                <th>P95</th>
+                <th>Errors</th>
+                <th>System CPU</th>
+                <th>App CPU</th>
+                <th>RPS</th>
+                <th>Action</th>
+                <th>Bottleneck</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{ROWS_HTML}}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <script src="/reports/assets/report.js"></script>
+  <script>
+    const ALG_CHART_DATA = JSON.parse('{{CHART_DATA_JSON}}');
+    initAlgReport(ALG_CHART_DATA);
+  </script>
+</body>
+</html>
