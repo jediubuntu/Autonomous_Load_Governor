@@ -68,30 +68,30 @@ missing, startup fails.
 
 ## Setup
 
-From the project root:
+### Windows
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup-local.ps1
-```
-
-This creates `.venv` and installs dependencies from `app/requirements.txt`.
-
-Create a local `.env` for secrets only:
-
-```powershell
+python scripts/setup_local.py
 notepad .env
 ```
 
-Add at minimum:
+### macOS / Linux
+
+```bash
+python3 scripts/setup_local.py
+nano .env
+```
+
+Use this minimal `.env`:
 
 ```env
 GEMINI_API_KEY=your_key_here
 ALG_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-ALG_LLM_MODEL=gemini-2.5-flash
+ALG_LLM_MODEL=models/gemini-2.5-flash
 ```
 
-`ALG_LLM_API_KEY` still works, but the controller now also accepts
-`GEMINI_API_KEY` and `GOOGLE_API_KEY`.
+`ALG_LLM_API_KEY` still works, but the controller also accepts
+`GEMINI_API_KEY`, `GOOGLE_API_KEY`, and `OPENAI_API_KEY`.
 
 Then edit `alg.settings.json` for runtime behavior, for example:
 
@@ -109,18 +109,19 @@ Then edit `alg.settings.json` for runtime behavior, for example:
 
 ## Run
 
-Start the full local stack:
+### Windows
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-local.ps1
+python scripts/run_local.py
 ```
 
-The script opens two windows:
+### macOS / Linux
 
-- `ALG FastAPI`: starts the test service on `http://127.0.0.1:8000`
-- `ALG Controller`: starts the adaptive controller and Locust load driver
+```bash
+python3 scripts/run_local.py
+```
 
-Close those windows to stop the run.
+This starts the FastAPI app in the background and runs the controller in the current shell.
 
 The FastAPI reports UI and generated HTML reports use a light background theme.
 
@@ -343,7 +344,7 @@ CPU metrics look odd:
 
 ## Manual Run
 
-Setup:
+### Windows
 
 ```powershell
 python -m venv .venv
@@ -352,16 +353,32 @@ notepad .env
 ```
 
 Terminal 1:
-
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Terminal 2:
-
 ```powershell
 $env:ALG_TARGET_URL = "http://127.0.0.1:8000"
 .\.venv\Scripts\python.exe controller\main.py
+```
+
+### macOS / Linux
+
+```bash
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r app/requirements.txt
+nano .env
+```
+
+Terminal 1:
+```bash
+./.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Terminal 2:
+```bash
+ALG_TARGET_URL="http://127.0.0.1:8000" ./.venv/bin/python controller/main.py
 ```
 
 ## Model Access Utility
