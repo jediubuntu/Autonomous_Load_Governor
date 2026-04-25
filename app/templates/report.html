@@ -114,9 +114,10 @@
     </section>
   </div>
 
+  <script id="alg-chart-data" type="application/json">{{CHART_DATA_JSON}}</script>
   <script src="/reports/assets/report.js"></script>
   <script>
-    const ALG_CHART_DATA = JSON.parse('{{CHART_DATA_JSON}}');
+    const ALG_CHART_DATA = JSON.parse(document.getElementById('alg-chart-data').textContent);
     initAlgReport(ALG_CHART_DATA);
   </script>
 </body>

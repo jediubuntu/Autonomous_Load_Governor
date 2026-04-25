@@ -87,7 +87,7 @@ def render_html_report(
         "{{REPORT_HTML}}": report_html,
         "{{TIMELINE_HTML}}": render_timeline(history, decisions),
         "{{ROWS_HTML}}": rows,
-        "{{CHART_DATA_JSON}}": escape(json.dumps(chart_data)),
+        "{{CHART_DATA_JSON}}": json.dumps(chart_data),
     }
 
     html = template
