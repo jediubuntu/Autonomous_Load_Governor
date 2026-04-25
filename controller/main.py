@@ -5,6 +5,7 @@ from gevent import monkey
 monkey.patch_all()
 
 import sys
+from datetime import datetime
 from pathlib import Path
 from time import monotonic
 
@@ -18,6 +19,10 @@ from controller.config import ConfigError, Settings
 from controller.decision_engine import Decision, DecisionEngine
 from controller.reporting import utc_timestamp, write_html_report, write_text_report
 from llm.explainer import LLMError, LLMExplainer
+
+
+def ts() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def build_engine(settings: Settings) -> DecisionEngine:
@@ -56,13 +61,13 @@ def main() -> int:
     engine = build_engine(settings)
 
     current_users = settings.initial_users
-    print("Starting ALG controller")
-    print(f"Target: {settings.target_url}")
-    print("Load driver: Locust")
-    print(f"LLM model: {settings.llm_model}")
-    print(f"Initial users: {current_users}")
-    print(f"LLM control loop: every {settings.interval_seconds}s")
-    print(f"LLM report cadence: every {settings.report_every_seconds}s")
+    print(f"[{ts()}] Starting ALG controller")
+    print(f"[{ts()}] Target: {settings.target_url}")
+    print(f"[{ts()}] Load driver: Locust")
+    print(f"[{ts()}] LLM model: {settings.llm_model}")
+    print(f"[{ts()}] Initial users: {current_users}")
+    print(f"[{ts()}] LLM control loop: every {settings.interval_seconds}s")
+    print(f"[{ts()}] LLM report cadence: every {settings.report_every_seconds}s")
 
     load_driver.start(current_users)
 
@@ -87,8 +92,8 @@ def main() -> int:
                 )
             except LLMError as exc:
                 llm_failed = True
-                print(f"LLM error: {exc}", file=sys.stderr)
-                print("Continuing with fallback hold decision for this interval.", file=sys.stderr)
+                print(f"[{ts()}] LLM error: {exc}", file=sys.stderr)
+                print(f"[{ts()}] Continuing with fallback hold decision for this interval.", file=sys.stderr)
                 llm_decision = Decision(
                     action="hold",
                     target_users=current_users,
@@ -102,7 +107,7 @@ def main() -> int:
             decisions.append(decision)
 
             print(
-                f"[{interval}/{settings.max_intervals}] "
+                f"[{ts()}] [{interval}/{settings.max_intervals}] "
                 f"users={snapshot.users} "
                 f"p95={snapshot.latency_p95_ms:.1f}ms "
                 f"errors={snapshot.error_rate:.3%} "
@@ -137,18 +142,18 @@ def main() -> int:
                     last_report_time = monotonic()
                 except LLMError as exc:
                     llm_failed = True
-                    print(f"LLM error: {exc}", file=sys.stderr)
-                    print("Skipping periodic LLM report for now and continuing the run.", file=sys.stderr)
+                    print(f"[{ts()}] LLM error: {exc}", file=sys.stderr)
+                    print(f"[{ts()}] Skipping periodic LLM report for now and continuing the run.", file=sys.stderr)
 
             if decision.target_users != current_users:
                 load_driver.scale(decision.target_users)
                 current_users = decision.target_users
     except KeyboardInterrupt:
-        print("Controller interrupted; generating final LLM report.")
+        print(f"[{ts()}] Controller interrupted; generating final LLM report.")
     finally:
         load_driver.stop()
         if llm_failed:
-            print("Run completed with one or more LLM failures handled by fallback logic.", file=sys.stderr)
+            print(f"[{ts()}] Run completed with one or more LLM failures handled by fallback logic.", file=sys.stderr)
 
     return 0
 
@@ -189,7 +194,7 @@ def write_live_report(
         timestamp=timestamp,
         title="ALG Live Report",
     )
-    print(f"Live HTML report updated at {html_path}")
+    print(f"[{ts()}] Live HTML report updated at {html_path}")
 
 
 def write_report(
@@ -218,8 +223,8 @@ def write_report(
         timestamp=timestamp,
         title=title,
     )
-    print(f"Report written to {markdown_path}")
-    print(f"HTML report written to {html_path}")
+    print(f"[{ts()}] Report written to {markdown_path}")
+    print(f"[{ts()}] HTML report written to {html_path}")
 
 
 if __name__ == "__main__":
