@@ -208,7 +208,16 @@ class LLMExplainer:
         if body:
             try:
                 payload = json.loads(body)
-                detail = payload.get("error", {}).get("message") or body
+                if isinstance(payload, dict):
+                    detail = payload.get("error", {}).get("message") or body
+                elif isinstance(payload, list) and payload:
+                    first = payload[0]
+                    if isinstance(first, dict):
+                        detail = first.get("error", {}).get("message") or body
+                    else:
+                        detail = body
+                else:
+                    detail = body
             except json.JSONDecodeError:
                 detail = body
         else:

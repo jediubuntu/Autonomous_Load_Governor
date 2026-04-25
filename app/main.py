@@ -34,7 +34,10 @@ ITEMS: dict[int, Item] = {
 NEXT_ITEM_ID = 2
 ITEMS_LOCK = threading.Lock()
 START_TIME = time.time()
+PROCESS = psutil.Process()
 
+psutil.cpu_percent(interval=None)
+PROCESS.cpu_percent(interval=None)
 
 app = FastAPI(title="ALG Test Service")
 REPORT_DIR = Path(__file__).resolve().parents[1] / "reports"
@@ -49,7 +52,7 @@ def health() -> dict[str, str]:
 def runtime() -> dict[str, float | int]:
     return {
         "cpu_percent": psutil.cpu_percent(interval=None),
-        "process_cpu_percent": psutil.Process().cpu_percent(interval=None),
+        "process_cpu_percent": PROCESS.cpu_percent(interval=None),
         "memory_percent": psutil.virtual_memory().percent,
         "uptime_seconds": round(time.time() - START_TIME, 3),
     }
@@ -73,14 +76,14 @@ def render_reports_home() -> str:
   <title>ALG Reports</title>
   <style>
     :root {{
-      --bg: #081120;
-      --panel: #101a2f;
-      --panel-soft: #16223d;
-      --line: #263557;
-      --ink: #eef4ff;
-      --muted: #9fb0d1;
-      --accent: #60a5fa;
-      --accent-2: #22c55e;
+      --bg: #f4f8fc;
+      --panel: rgba(255, 255, 255, 0.92);
+      --panel-soft: #eef4fb;
+      --line: #d7e2ef;
+      --ink: #102033;
+      --muted: #5f7188;
+      --accent: #2563eb;
+      --accent-2: #16a34a;
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -88,9 +91,9 @@ def render_reports_home() -> str:
       font-family: Inter, Segoe UI, Arial, sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(circle at top left, rgba(96, 165, 250, 0.16), transparent 32%),
-        radial-gradient(circle at top right, rgba(34, 197, 94, 0.14), transparent 28%),
-        var(--bg);
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 32%),
+        radial-gradient(circle at top right, rgba(22, 163, 74, 0.08), transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
       min-height: 100vh;
     }}
     main {{ max-width: 1100px; margin: 0 auto; padding: 40px 24px 60px; }}
@@ -101,11 +104,11 @@ def render_reports_home() -> str:
       align-items: stretch;
     }}
     .panel {{
-      background: rgba(16, 26, 47, 0.92);
+      background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 18px;
       padding: 24px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.10);
       backdrop-filter: blur(10px);
     }}
     h1, h2, p {{ margin-top: 0; }}
@@ -118,7 +121,7 @@ def render_reports_home() -> str:
       border-radius: 12px;
       text-decoration: none;
       background: linear-gradient(135deg, var(--accent), #3b82f6);
-      color: #fff;
+      color: #ffffff;
       font-weight: 700;
     }}
     .stack {{ display: grid; gap: 20px; margin-top: 20px; }}
@@ -147,7 +150,7 @@ def render_reports_home() -> str:
     a {{ color: var(--accent); text-decoration: none; font-weight: 600; }}
     li span {{ color: var(--muted); white-space: nowrap; }}
     code {{
-      background: rgba(255,255,255,0.08);
+      background: #f8fbff;
       border: 1px solid var(--line);
       padding: 2px 6px;
       border-radius: 6px;
@@ -162,7 +165,7 @@ def render_reports_home() -> str:
   <main>
     <section class="hero">
       <div class="panel">
-        <p style="color:#60a5fa;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Autonomous Load Governor</p>
+        <p style="color:#2563eb;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Autonomous Load Governor</p>
         <h1>Periodic HTML performance reports</h1>
         <p class="subtitle">
           ALG collects metrics every interval, makes rule-based scaling decisions every interval,

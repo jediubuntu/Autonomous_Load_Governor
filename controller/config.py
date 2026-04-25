@@ -99,12 +99,21 @@ class Settings:
         runtime_config_path = root / "alg.settings.json"
         runtime_config = load_runtime_config(runtime_config_path)
 
-        llm_api_key = os.getenv("ALG_LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
-        llm_model = os.getenv("ALG_LLM_MODEL", "").strip()
-        llm_base_url = os.getenv("ALG_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        llm_api_key = (
+            os.getenv("ALG_LLM_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("GOOGLE_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+        )
+        llm_model = os.getenv("ALG_LLM_MODEL", "gemini-2.5-flash").strip()
+        llm_base_url = os.getenv(
+            "ALG_LLM_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai"
+        ).rstrip("/")
 
         if not llm_api_key:
-            raise ConfigError("ALG_LLM_API_KEY or OPENAI_API_KEY is required in .env")
+            raise ConfigError(
+                "ALG_LLM_API_KEY, GEMINI_API_KEY, GOOGLE_API_KEY, or OPENAI_API_KEY is required in .env"
+            )
         if not llm_model:
             raise ConfigError("ALG_LLM_MODEL is required in .env")
 

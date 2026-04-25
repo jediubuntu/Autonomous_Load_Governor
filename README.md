@@ -2,7 +2,7 @@
 
 ALG is a Python-first closed-loop performance testing system. It runs a FastAPI
 system under test, drives load with Locust, adapts users in real time, detects
-stability and breakpoint behavior, and uses an OpenAI-compatible LLM to explain
+stability and breakpoint behavior, and uses a Gemini-compatible LLM endpoint to explain
 each interval and generate batched markdown + HTML reports on a timed cadence.
 
 The local workflow is intentionally Docker-free: setup installs Python
@@ -39,7 +39,7 @@ Runtime metrics come from:
 ```text
 app/                  FastAPI test service
 controller/           adaptive controller and decision engine
-llm/                  OpenAI-compatible LLM client
+llm/                  Gemini/OpenAI-compatible LLM client
 load/                 Locust user behavior
 scripts/              Windows setup and run scripts
 reports/              generated reports, ignored by git
@@ -58,8 +58,8 @@ Required LLM values:
 
 ```env
 ALG_LLM_API_KEY=your_key_here
-ALG_LLM_BASE_URL=https://api.openai.com/v1
-ALG_LLM_MODEL=your_chat_model_here
+ALG_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+ALG_LLM_MODEL=gemini-2.5-flash
 ```
 
 The controller has no non-LLM fallback. If the key or model is missing, startup
@@ -85,10 +85,13 @@ notepad .env
 Add at minimum:
 
 ```env
-ALG_LLM_API_KEY=your_key_here
-ALG_LLM_BASE_URL=https://api.openai.com/v1
-ALG_LLM_MODEL=gpt-4.1-mini
+GEMINI_API_KEY=your_key_here
+ALG_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+ALG_LLM_MODEL=gemini-2.5-flash
 ```
+
+`ALG_LLM_API_KEY` still works, but the controller now also accepts
+`GEMINI_API_KEY` and `GOOGLE_API_KEY`.
 
 Then edit `alg.settings.json` for runtime behavior, for example:
 
@@ -118,6 +121,8 @@ The script opens two windows:
 - `ALG Controller`: starts the adaptive controller and Locust load driver
 
 Close those windows to stop the run.
+
+The FastAPI reports UI and generated HTML reports use a light background theme.
 
 ## Verify
 
@@ -231,16 +236,35 @@ Bottleneck classes:
 - `latency collapse`
 - `none`
 
+CPU metric note:
+- `App process CPU` is the primary CPU signal to trust for controller behavior
+- `System CPU` is still exposed for host-level visibility, but may appear lower or less stable depending on sampling timing
+- if the two disagree, prefer `App process CPU` when interpreting ALG runs
+
+LLM resilience note:
+- if an LLM decision call fails, ALG now falls back to a `hold` decision for that interval instead of crashing the controller
+- if a periodic LLM summary report fails, ALG skips that report window and continues the run
+- LLM failures are still logged so rate-limit or quota problems remain visible
+
 ## Configuration
 
 Edit `.env` for provider settings:
 
 ```env
 ALG_TARGET_URL=http://127.0.0.1:8000
-ALG_LLM_API_KEY=your_key_here
-ALG_LLM_BASE_URL=https://api.openai.com/v1
-ALG_LLM_MODEL=gpt-4.1-mini
+GEMINI_API_KEY=your_key_here
+ALG_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+ALG_LLM_MODEL=models/gemini-2.5-flash
 ```
+
+Recommended model:
+- `models/gemini-2.5-flash`
+
+Accepted API key variables:
+- `ALG_LLM_API_KEY`
+- `GEMINI_API_KEY`
+- `GOOGLE_API_KEY`
+- `OPENAI_API_KEY`
 
 Edit `alg.settings.json` for controller behavior:
 
@@ -287,9 +311,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-local.ps1
 LLM `429 Too Many Requests`:
 
 - ALG now waits at least 120 seconds before retrying a `429`
+- if a control-loop LLM call still fails, ALG falls back to `hold` for that interval
+- if a periodic report LLM call fails, ALG skips that report window and continues
 - reduce `ALG_MAX_INTERVALS`
 - increase `ALG_INTERVAL_SECONDS`
-- use a lighter model such as `gpt-4.1-mini`
+- use a lighter model such as `models/gemini-2.5-flash`
 - check API billing/quota/model access
 
 Port already in use:
@@ -304,9 +330,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-local.ps1 -AppPo
 No report generated:
 
 - check whether the controller stopped due to an LLM error
-- confirm `.env` has `ALG_LLM_API_KEY` and `ALG_LLM_MODEL`
+- confirm `.env` has one of `ALG_LLM_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, or `OPENAI_API_KEY`
+- confirm `.env` has `ALG_LLM_MODEL`
 - wait until `ALG_REPORT_EVERY_SECONDS` has elapsed
 - open `http://127.0.0.1:8000/reports` to view the latest HTML output
+
+CPU metrics look odd:
+
+- trust `App CPU` first; it is the most relevant signal for ALG itself
+- `System CPU` is machine-wide and may look lower than expected depending on sampling timing
+- if `App CPU` rises with load while latency and RPS also move realistically, the controller is capturing meaningful CPU behavior
 
 ## Manual Run
 
@@ -330,3 +363,24 @@ Terminal 2:
 $env:ALG_TARGET_URL = "http://127.0.0.1:8000"
 .\.venv\Scripts\python.exe controller\main.py
 ```
+
+## Model Access Utility
+
+A standalone helper script is included to check which Gemini models your API key
+can list and which ones respond successfully to `chat/completions`:
+
+```text
+Check_Google_Gemini_models_access.py
+```
+
+Run it from the ALG project root:
+
+```powershell
+python Check_Google_Gemini_models_access.py
+```
+
+This script:
+- loads `.env`
+- lists visible Gemini/OpenAI-compatible models
+- tests lightweight chat access per model
+- does not print or write your API key

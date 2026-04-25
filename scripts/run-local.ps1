@@ -75,8 +75,13 @@ Assert-File $venvActivate "Missing .venv. Run scripts\setup-local.ps1 first."
 Assert-File $envPath "Missing .env. Run scripts\setup-local.ps1 first, then fill in LLM values."
 
 $envValues = Read-DotEnv $envPath
-if (-not $envValues["ALG_LLM_API_KEY"] -and -not $envValues["OPENAI_API_KEY"]) {
-    throw "ALG_LLM_API_KEY or OPENAI_API_KEY is required in .env."
+if (
+    -not $envValues["ALG_LLM_API_KEY"] `
+    -and -not $envValues["GEMINI_API_KEY"] `
+    -and -not $envValues["GOOGLE_API_KEY"] `
+    -and -not $envValues["OPENAI_API_KEY"]
+) {
+    throw "ALG_LLM_API_KEY, GEMINI_API_KEY, GOOGLE_API_KEY, or OPENAI_API_KEY is required in .env."
 }
 if (-not $envValues["ALG_LLM_MODEL"]) {
     throw "ALG_LLM_MODEL is required in .env."

@@ -88,8 +88,15 @@ def main() -> int:
             except LLMError as exc:
                 llm_failed = True
                 print(f"LLM error: {exc}", file=sys.stderr)
-                print("Stopping run because LLM-driven control is required.", file=sys.stderr)
-                break
+                print("Continuing with fallback hold decision for this interval.", file=sys.stderr)
+                llm_decision = Decision(
+                    action="hold",
+                    target_users=current_users,
+                    reason=f"Fallback hold due to LLM error: {exc}",
+                    bottleneck="none",
+                    stable=False,
+                    breakpoint_detected=False,
+                )
 
             decision = engine.register(snapshot, llm_decision)
             decisions.append(decision)
@@ -131,8 +138,7 @@ def main() -> int:
                 except LLMError as exc:
                     llm_failed = True
                     print(f"LLM error: {exc}", file=sys.stderr)
-                    print("Stopping run because periodic LLM reports are required.", file=sys.stderr)
-                    break
+                    print("Skipping periodic LLM report for now and continuing the run.", file=sys.stderr)
 
             if decision.target_users != current_users:
                 load_driver.scale(decision.target_users)
@@ -142,7 +148,7 @@ def main() -> int:
     finally:
         load_driver.stop()
         if llm_failed:
-            print("Run stopped after LLM failure.", file=sys.stderr)
+            print("Run completed with one or more LLM failures handled by fallback logic.", file=sys.stderr)
 
     return 0
 

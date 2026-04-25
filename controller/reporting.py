@@ -82,32 +82,32 @@ def render_html_report(
   <title>{escape(title)}</title>
   <style>
     :root {{
-      color-scheme: dark;
-      --bg: #07111f;
-      --bg-soft: #0b1628;
-      --panel: rgba(12, 22, 38, 0.88);
-      --panel-2: rgba(17, 30, 51, 0.92);
-      --line: rgba(148, 163, 184, 0.16);
-      --line-strong: rgba(148, 163, 184, 0.28);
-      --ink: #e5eefc;
-      --muted: #97a8c5;
-      --accent: #60a5fa;
-      --accent-2: #38bdf8;
-      --good: #22c55e;
-      --warn: #f59e0b;
-      --bad: #ef4444;
-      --violet: #a78bfa;
-      --pink: #f472b6;
-      --shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
+      color-scheme: light;
+      --bg: #f4f8fc;
+      --bg-soft: #eef4fb;
+      --panel: rgba(255, 255, 255, 0.94);
+      --panel-2: rgba(248, 251, 255, 0.98);
+      --line: rgba(148, 163, 184, 0.22);
+      --line-strong: rgba(148, 163, 184, 0.34);
+      --ink: #102033;
+      --muted: #5f7188;
+      --accent: #2563eb;
+      --accent-2: #0ea5e9;
+      --good: #16a34a;
+      --warn: #d97706;
+      --bad: #dc2626;
+      --violet: #7c3aed;
+      --pink: #db2777;
+      --shadow: 0 20px 60px rgba(15, 23, 42, 0.10);
     }}
     * {{ box-sizing: border-box; }}
     html, body {{ margin: 0; padding: 0; }}
     body {{
       font-family: Inter, Segoe UI, Arial, sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 30%),
-        radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 24%),
-        linear-gradient(180deg, #081120 0%, #07111f 100%);
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 30%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 24%),
+        linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
       color: var(--ink);
       min-height: 100vh;
       line-height: 1.5;
@@ -240,21 +240,21 @@ def render_html_report(
       font-size: 13px;
     }}
     .report {{
-      color: #d7e5fb;
+      color: #203247;
       font-size: 15px;
     }}
     .report h1, .report h2, .report h3 {{
       margin-top: 0;
-      color: #fff;
+      color: #102033;
     }}
     .report p, .report li {{
-      color: #d4def0;
+      color: #31465f;
     }}
     .report ul {{
       padding-left: 18px;
     }}
     .report code {{
-      background: rgba(255,255,255,0.08);
+      background: #f8fbff;
       border: 1px solid var(--line);
       border-radius: 6px;
       padding: 2px 6px;
@@ -267,7 +267,7 @@ def render_html_report(
     }}
     .tab-btn {{
       border: 1px solid var(--line);
-      background: rgba(255,255,255,0.03);
+      background: rgba(255,255,255,0.72);
       color: var(--muted);
       padding: 9px 12px;
       border-radius: 10px;
@@ -276,7 +276,7 @@ def render_html_report(
     }}
     .tab-btn.active {{
       background: rgba(96, 165, 250, 0.14);
-      color: #fff;
+      color: #102033;
       border-color: rgba(96, 165, 250, 0.35);
     }}
     .chart-wrap {{
@@ -315,7 +315,7 @@ def render_html_report(
       margin-bottom: 14px;
     }}
     select {{
-      background: rgba(255,255,255,0.04);
+      background: #ffffff;
       color: var(--ink);
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -340,7 +340,7 @@ def render_html_report(
       letter-spacing: .08em;
       position: sticky;
       top: 0;
-      background: rgba(8, 17, 31, 0.96);
+      background: rgba(248, 251, 255, 0.96);
       backdrop-filter: blur(10px);
     }}
     .table-wrap {{
@@ -348,7 +348,7 @@ def render_html_report(
       overflow: auto;
       border: 1px solid var(--line);
       border-radius: 18px;
-      background: rgba(6, 12, 24, 0.38);
+      background: rgba(255, 255, 255, 0.72);
     }}
     .pill {{
       display: inline-flex;
@@ -359,9 +359,9 @@ def render_html_report(
       font-weight: 700;
       letter-spacing: .02em;
     }}
-    .pill.hold {{ background: rgba(245, 158, 11, 0.16); color: #fbbf24; }}
-    .pill.increase {{ background: rgba(34, 197, 94, 0.16); color: #86efac; }}
-    .pill.decrease {{ background: rgba(239, 68, 68, 0.16); color: #fca5a5; }}
+    .pill.hold {{ background: rgba(245, 158, 11, 0.14); color: #b45309; }}
+    .pill.increase {{ background: rgba(34, 197, 94, 0.14); color: #166534; }}
+    .pill.decrease {{ background: rgba(239, 68, 68, 0.14); color: #991b1b; }}
     .timeline {{
       display: grid;
       gap: 12px;
@@ -384,7 +384,7 @@ def render_html_report(
       font-weight: 800;
     }}
     .timeline-card {{
-      background: rgba(255,255,255,0.03);
+      background: rgba(255,255,255,0.78);
       border: 1px solid var(--line);
       border-radius: 16px;
       padding: 14px 16px;
