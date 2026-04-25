@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import asdict
+from datetime import datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -11,6 +12,10 @@ from controller.decision_engine import Decision, EngineSummary, MetricsSnapshot
 
 class LLMError(RuntimeError):
     pass
+
+
+def _ts() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 class LLMExplainer:
@@ -174,7 +179,7 @@ class LLMExplainer:
                 if exc.code == 429:
                     sleep_seconds = max(120.0, sleep_seconds)
                 print(
-                    f"LLM request failed with HTTP {exc.code}; "
+                    f"[{_ts()}] LLM request failed with HTTP {exc.code}; "
                     f"retrying in {sleep_seconds:.1f}s ({attempt + 1}/{self.max_retries})"
                 )
                 time.sleep(sleep_seconds)
@@ -182,7 +187,7 @@ class LLMExplainer:
                 if attempt >= self.max_retries:
                     raise LLMError(f"LLM request failed: {exc.reason}") from exc
                 print(
-                    "LLM request failed due to a network error; "
+                    f"[{_ts()}] LLM request failed due to a network error; "
                     f"retrying in {self.retry_seconds:.1f}s ({attempt + 1}/{self.max_retries})"
                 )
                 time.sleep(self.retry_seconds)
